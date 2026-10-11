@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import "./App.css";
-
+import treatmentGuidance from "./treatmentGuidance";
 function App() {
   const [image, setImage] = useState(null);
   const [file, setFile] = useState(null);
@@ -65,13 +65,15 @@ function App() {
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
         throw new Error(
-          `Server error (${response.status}). Please try again.`
+          data.detail ||
+            data.message ||
+            `Server error (${response.status}).`
         );
       }
-
-      const data = await response.json();
 
       if (data.error) {
         throw new Error(data.error);
@@ -95,14 +97,35 @@ function App() {
     setResult(null);
     setAnalyzing(false);
   };
+  
+const getGuidance = (label = "") => {
+  const normalizedLabel = label
+    .replace(/___/g, " ")
+    .replace(/_/g, " ")
+    .toLowerCase();
 
+  if (normalizedLabel.includes("bacterial spot")) {
+    return treatmentGuidance["Bacterial spot"];
+  }
+
+  return null;
+};
+
+  const formatDisease = (label = "") =>
+    label
+      .replace(/___/g, " — ")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+const guidance = result?.predicted_disease
+  ? getGuidance(result.predicted_disease)
+  : null; 
   return (
     <div className="app">
       <header className="navbar">
         <div className="logo">
           🌾 <span>Crop Doctor</span>
         </div>
-
         <div className="language">🌐 English</div>
       </header>
 
@@ -119,20 +142,16 @@ function App() {
           </h1>
 
           <p>
-            Upload a photo of your crop leaf for disease detection,
-            treatment guidance and prevention tips.
+            Upload a photo of your crop leaf to get an AI-based
+            disease prediction and helpful next steps.
           </p>
 
           <div className="upload-card">
             {!image ? (
               <>
                 <div className="upload-icon">📷</div>
-
                 <h2>Upload Crop Photo</h2>
-
-                <p>
-                  Choose a clear photo of the affected leaf.
-                </p>
+                <p>Choose a clear photo of the affected leaf.</p>
 
                 <label className="upload-button">
                   📁 Choose Photo
@@ -157,7 +176,6 @@ function App() {
                 />
 
                 <h2>Photo Ready ✓</h2>
-
                 <p>{file?.name}</p>
 
                 <button
@@ -166,15 +184,15 @@ function App() {
                   disabled={analyzing}
                 >
                   {analyzing
-                    ? "Uploading Photo..."
+                    ? "Analyzing..."
                     : "🤖 Analyze Crop"}
                 </button>
 
                 <button
                   className="upload-button"
                   onClick={handleRemove}
-                  style={{ marginTop: "12px" }}
                   disabled={analyzing}
+                  style={{ marginTop: "12px" }}
                 >
                   ✕ Remove Photo
                 </button>
@@ -183,7 +201,7 @@ function App() {
 
             {analyzing && (
               <p role="status" style={{ marginTop: "16px" }}>
-                🌱 Uploading your crop photo. Please wait...
+                🌱 AI is analyzing your image. Please wait...
               </p>
             )}
 
@@ -195,38 +213,138 @@ function App() {
                   marginTop: "16px",
                 }}
               >
-                {error}
+                ⚠️ {error}
               </p>
             )}
 
             {result && (
               <div
+                className="result-card"
                 role="status"
                 style={{
-                  marginTop: "20px",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  background: "#eaf7ec",
-                  color: "#185c2c",
+                  marginTop: "22px",
+                  padding: "20px",
+                  borderRadius: "14px",
+                  background: "#f0f8f0",
+                  color: "#204b2a",
+                  textAlign: "left",
                   overflowWrap: "anywhere",
+                  border: "1px solid #cde5d0",
                 }}
               >
-                <h3>✅ Photo Uploaded Successfully!</h3>
+                <h2 style={{ marginTop: 0 }}>
+                  🌿 AI Analysis Result
+                </h2>
 
-                <p>
-                  {result.message ||
-                    "Your photo was received by the backend."}
-                </p>
+                <p>{result.message}</p>
 
+                {result.status === "prediction_complete" &&
+                  result.predicted_disease && (
+                    <>
+                      <p>
+                        <strong>Predicted Disease:</strong>
+                      </p>
+
+                      <h3>
+                        {formatDisease(result.predicted_disease)}
+                      </h3>
+
+                      {typeof result.confidence === "number" && (
+                        <>
+                          <p>
+                            <strong>Model confidence:</strong>{" "}
+                            {result.confidence.toFixed(2)}%
+                          </p>
+
+                          <div
+                            style={{
+                              height: "10px",
+                              background: "#d5e5d8",
+                              borderRadius: "10px",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(0, result.confidence)
+                                )}%`,
+                                height: "100%",
+                                background: "#238636",
+                                borderRadius: "10px",
+                              }}
+                            />
+                          </div>
+
+                          <p
+                            style={{
+                              fontSize: "14px",
+                              marginTop: "12px",
+                              color: "#725018",
+                            }}
+                          >
+                            ⚠️ This is an AI estimate, not a
+                            confirmed diagnosis. Verify the result
+                            before choosing any treatment.
+                          </p>
+                        </>
+                      )}
+                    </>
+                  )}
+                {guidance && (
+  <section
+    style={{
+      marginTop: "20px",
+      padding: "16px",
+      borderRadius: "12px",
+      background: "#ffffff",
+      color: "#204b2a",
+      border: "1px solid #cde5d0",
+      textAlign: "left",
+    }}
+  >
+    <h3>🩺 Treatment & Management Guidance</h3>
+    <h4>{guidance.title}</h4>
+    <p>{guidance.overview}</p>
+
+    <h4>Practical Next Steps</h4>
+    <ul>
+      {guidance.actions.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
+
+    <h4>🛡️ Prevention</h4>
+    <ul>
+      {guidance.prevention.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
+
+    <p>
+      <strong>Important: </strong>
+      {guidance.warning}
+    </p>
+  </section>
+)}
                 {result.filename && (
                   <p>
-                    <strong>File:</strong> {result.filename}
+                    <strong>Image:</strong> {result.filename}
                   </p>
                 )}
 
                 <p>
                   <strong>Status:</strong> {result.status}
                 </p>
+
+                <button
+                  className="upload-button"
+                  onClick={handleRemove}
+                  style={{ marginTop: "10px" }}
+                >
+                  Analyze Another Photo
+                </button>
               </div>
             )}
           </div>
@@ -237,33 +355,25 @@ function App() {
         <div className="feature">
           <div>🤖</div>
           <h3>AI Detection</h3>
-          <p>
-            Check crop images for possible disease symptoms.
-          </p>
+          <p>Get a prediction from your crop leaf image.</p>
         </div>
 
         <div className="feature">
           <div>🩺</div>
           <h3>Treatment Guidance</h3>
-          <p>
-            Explore practical ways to manage crop problems.
-          </p>
+          <p>Verify the diagnosis before deciding on treatment.</p>
         </div>
 
         <div className="feature">
           <div>🛡️</div>
           <h3>Prevention</h3>
-          <p>
-            Learn how to reduce the risk of future infections.
-          </p>
+          <p>Learn ways to reduce future crop disease risks.</p>
         </div>
 
         <div className="feature">
-          <div>🔊</div>
-          <h3>Local Language</h3>
-          <p>
-            Make crop-health information easier to understand.
-          </p>
+          <div>🌍</div>
+          <h3>Farmer Friendly</h3>
+          <p>Built to make crop-health information more accessible.</p>
         </div>
       </section>
 
@@ -275,3 +385,4 @@ function App() {
 }
 
 export default App;
+ 
